@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import QProgressDialog
 
 from .cache import SuggestionCache, default_cache_path
@@ -19,6 +19,8 @@ from .scanner import (
     scan_markdown_files,
 )
 from .viewer import MainWindow, SuggestionViewModel, create_application
+
+PREFETCH_MAX_CONCURRENCY = 4
 
 
 @dataclass
@@ -112,7 +114,7 @@ class AppController(QObject):
     def _start_prefetch(self) -> None:
         total = len(self.notes)
         dialog = QProgressDialog(
-            "正在批量预请求 LLM 建议…",
+            f"正在后台预取 LLM 建议（最多 {PREFETCH_MAX_CONCURRENCY} 并发）…",
             "取消（改为按需请求）",
             0,
             total,
@@ -122,13 +124,14 @@ class AppController(QObject):
         dialog.setMinimumDuration(0)
         dialog.setAutoClose(False)
         dialog.setAutoReset(False)
+        dialog.setWindowModality(Qt.WindowModal)
         dialog.setValue(0)
-        dialog.setLabelText(f"0 / {total}  正在准备…")
+        dialog.setLabelText(f"0 / {total}  正在准备（最多 {PREFETCH_MAX_CONCURRENCY} 并发）…")
 
         worker = PrefetchWorker(
             self.classifier,
             self.notes,
-            concurrency=total,
+            concurrency=PREFETCH_MAX_CONCURRENCY,
         )
         worker.progress.connect(self._on_prefetch_progress)
         worker.item_done.connect(self._on_prefetch_item_done)
@@ -162,12 +165,14 @@ class AppController(QObject):
 
         if failure_count:
             self.window.set_status(
-                "预请求完成："
+                "后台预取完成："
                 f"成功 {success_count}，失败 {failure_count}"
                 "（失败的文件仍可手动分类或按 R 重试）"
             )
         else:
-            self.window.set_status(f"预请求完成：已缓存 {success_count} 条建议，下面全部即时展示")
+            self.window.set_status(
+                f"后台预取完成：已缓存 {success_count} 条建议，下面会继续即时展示"
+            )
         self.load_current_note()
 
     def load_current_note(self) -> None:
@@ -230,6 +235,9 @@ class AppController(QObject):
                     accepted_key=None,
                 )
             )
+            return
+        if self._prefetch_worker is not None and self._prefetch_worker.isRunning():
+            self.window.set_status("后台预取进行中，请稍候或先取消预取。")
             return
 
         self.window.set_suggestion_loading()

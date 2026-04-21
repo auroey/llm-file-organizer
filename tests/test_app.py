@@ -111,6 +111,11 @@ class _FakeSuggestionWorker:
         return True
 
 
+class _RunningWorker:
+    def isRunning(self) -> bool:
+        return True
+
+
 class AppControllerTests(unittest.TestCase):
     def _build_config(self) -> AppConfig:
         return AppConfig(
@@ -256,7 +261,7 @@ class AppControllerTests(unittest.TestCase):
     @patch("src.app.ensure_category_dirs")
     @patch("src.app.load_config")
     @patch("src.app.MainWindow")
-    def test_start_prefetches_all_notes_in_one_batch(
+    def test_start_prefetch_uses_fixed_max_concurrency_of_four(
         self,
         main_window_mock,
         load_config_mock,
@@ -281,8 +286,39 @@ class AppControllerTests(unittest.TestCase):
         self.assertEqual(passed_notes, notes)
         self.assertEqual(
             prefetch_worker_mock.call_args.kwargs["concurrency"],
-            len(notes),
+            4,
         )
+        prefetch_worker_mock.return_value.start.assert_called_once()
+        _progress_dialog_mock.return_value.setWindowModality.assert_called_once()
+
+    @patch("src.app.SiliconFlowClassifier", return_value=_FakeClassifier(enabled=True))
+    @patch("src.app.SuggestionCache")
+    @patch("src.app.scan_markdown_files")
+    @patch("src.app.ensure_category_dirs")
+    @patch("src.app.load_config")
+    @patch("src.app.MainWindow")
+    def test_request_suggestion_is_blocked_while_prefetch_is_running(
+        self,
+        main_window_mock,
+        load_config_mock,
+        _ensure_dirs_mock,
+        scan_mock,
+        _cache_mock,
+        _classifier_mock,
+    ) -> None:
+        fake_window = _FakeWindow()
+        notes = [self._sample_note("note-1.md")]
+        main_window_mock.return_value = fake_window
+        load_config_mock.return_value = self._build_config()
+        scan_mock.return_value = notes
+
+        controller = AppController()
+        controller._prefetch_worker = _RunningWorker()
+
+        controller.request_suggestion(notes[0])
+
+        self.assertIsNone(controller._suggestion_worker)
+        self.assertIn("后台预取进行中，请稍候或先取消预取。", fake_window.status_messages)
 
     @patch("src.app.delete_note_file")
     @patch("src.app.SiliconFlowClassifier", return_value=_FakeClassifier())

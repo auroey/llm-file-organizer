@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from PySide6.QtCore import QThread, Signal
 
@@ -10,7 +10,7 @@ from .scanner import NoteFile
 
 
 class PrefetchWorker(QThread):
-    """Fetches LLM suggestions for every note in parallel before the main loop."""
+    """Background-prefetches LLM suggestions with a bounded concurrency limit."""
 
     progress = Signal(int, int, str)  # done, total, current_title
     item_done = Signal(str, bool, str)  # note_path, success, error_message
@@ -60,7 +60,7 @@ class PrefetchWorker(QThread):
 
         with ThreadPoolExecutor(max_workers=self._concurrency) as executor:
             futures = {executor.submit(self._run_one, note): note for note in pending}
-            for future in futures:
+            for future in as_completed(futures):
                 if self._cancel_event.is_set():
                     break
                 note = futures[future]
@@ -72,8 +72,8 @@ class PrefetchWorker(QThread):
                     self._record_success(note, total)
 
             if self._cancel_event.is_set():
-                for pending_future in futures:
-                    pending_future.cancel()
+                for submitted_future in futures:
+                    submitted_future.cancel()
 
         self.finished_summary.emit(self._success, self._failed)
 
