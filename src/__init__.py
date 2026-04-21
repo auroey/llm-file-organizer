@@ -1,0 +1,1 @@
+"""Markdown sorter application package."""

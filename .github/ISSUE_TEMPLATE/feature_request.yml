@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an improvement or new capability
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What pain point or workflow problem does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the ideal behavior or UI.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: List workarounds or other approaches you considered.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Mockups, screenshots, or examples from similar tools.

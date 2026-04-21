@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, repeatable set of steps.
+      placeholder: |
+        1. Configure ...
+        2. Open the app ...
+        3. Press ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 14 / Ubuntu 24.04
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: 3.11.9
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove secrets and private note content before sharing.
