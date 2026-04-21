@@ -1,9 +1,30 @@
 from __future__ import annotations
 
+import ctypes
 import shutil
+from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+FO_DELETE = 3
+FOF_SILENT = 0x0004
+FOF_NOCONFIRMATION = 0x0010
+FOF_ALLOWUNDO = 0x0040
+FOF_NOERRORUI = 0x0400
+
+
+class _SHFILEOPSTRUCTW(ctypes.Structure):
+    _fields_ = [
+        ("hwnd", wintypes.HWND),
+        ("wFunc", wintypes.UINT),
+        ("pFrom", wintypes.LPCWSTR),
+        ("pTo", wintypes.LPCWSTR),
+        ("fFlags", ctypes.c_uint16),
+        ("fAnyOperationsAborted", wintypes.BOOL),
+        ("hNameMappings", wintypes.LPVOID),
+        ("lpszProgressTitle", wintypes.LPCWSTR),
+    ]
 
 
 @dataclass(frozen=True)
@@ -86,3 +107,27 @@ def move_note_file(note_path: Path, target_dir: Path) -> MoveResult:
     renamed = destination.name != note_path.name
     shutil.move(note_path, destination)
     return MoveResult(source_path=note_path, destination_path=destination, renamed=renamed)
+
+
+def _send_to_windows_recycle_bin(note_path: Path) -> None:
+    operation = _SHFILEOPSTRUCTW(
+        hwnd=None,
+        wFunc=FO_DELETE,
+        pFrom=f"{note_path}\0\0",
+        pTo=None,
+        fFlags=FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT,
+        fAnyOperationsAborted=False,
+        hNameMappings=None,
+        lpszProgressTitle=None,
+    )
+    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
+    if result != 0:
+        raise OSError(f"Windows recycle-bin operation failed with code {result}.")
+    if operation.fAnyOperationsAborted:
+        raise RuntimeError("Recycle-bin operation was aborted.")
+
+
+def delete_note_file(note_path: Path) -> None:
+    if not note_path.exists():
+        raise FileNotFoundError(f"File does not exist: {note_path}")
+    _send_to_windows_recycle_bin(note_path)

@@ -8,7 +8,10 @@ from src.config import load_config
 class ConfigTests(unittest.TestCase):
     def test_load_config_uses_generic_default_source_dir(self) -> None:
         fake_home = Path("/tmp/test-home")
-        with patch("src.config.Path.home", return_value=fake_home):
+        with patch("src.config.Path.home", return_value=fake_home), patch(
+            "src.config.load_dotenv",
+            return_value=False,
+        ):
             with patch.dict("os.environ", {}, clear=True):
                 config = load_config()
 

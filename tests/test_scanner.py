@@ -1,7 +1,9 @@
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from src.scanner import build_conflict_free_path, extract_title
+from src.scanner import build_conflict_free_path, delete_note_file, extract_title
 
 
 class ScannerTests(unittest.TestCase):
@@ -13,8 +15,6 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(extract_title("没有标题", "fallback"), "fallback")
 
     def test_build_conflict_free_path_appends_dup_suffix(self) -> None:
-        from tempfile import TemporaryDirectory
-
         with TemporaryDirectory() as directory:
             tmp_path = Path(directory)
             (tmp_path / "notes.md").write_text("a", encoding="utf-8")
@@ -23,6 +23,16 @@ class ScannerTests(unittest.TestCase):
             destination = build_conflict_free_path(tmp_path, "notes.md")
 
             self.assertEqual(destination.name, "notes_dup2.md")
+
+    def test_delete_note_file_uses_windows_recycle_bin_helper(self) -> None:
+        with TemporaryDirectory() as directory:
+            note_path = Path(directory) / "notes.md"
+            note_path.write_text("hello", encoding="utf-8")
+
+            with patch("src.scanner._send_to_windows_recycle_bin") as recycle_mock:
+                delete_note_file(note_path)
+
+            recycle_mock.assert_called_once_with(note_path)
 
 
 if __name__ == "__main__":

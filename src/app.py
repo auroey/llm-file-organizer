@@ -10,7 +10,14 @@ from .cache import SuggestionCache, default_cache_path
 from .classifier import ClassificationSuggestion, SiliconFlowClassifier
 from .config import CATEGORY_LABELS, CATEGORY_MAP, load_config
 from .prefetch import PrefetchWorker
-from .scanner import MoveResult, NoteFile, ensure_category_dirs, move_note_file, scan_markdown_files
+from .scanner import (
+    MoveResult,
+    NoteFile,
+    delete_note_file,
+    ensure_category_dirs,
+    move_note_file,
+    scan_markdown_files,
+)
 from .viewer import MainWindow, SuggestionViewModel, create_application
 
 
@@ -19,6 +26,7 @@ class SessionStats:
     moved: int = 0
     renamed: int = 0
     skipped: int = 0
+    deleted: int = 0
     failed: int = 0
     accepted: int = 0
 
@@ -63,6 +71,7 @@ class AppController(QObject):
         self.window.accept_suggestion_requested.connect(self.on_accept_suggestion)
         self.window.retry_suggestion_requested.connect(self.on_retry_suggestion)
         self.window.skip_requested.connect(self.on_skip)
+        self.window.delete_requested.connect(self.on_delete_requested)
         self.window.exit_requested.connect(self.on_exit_requested)
 
         self.cache = SuggestionCache(default_cache_path(self.config.source_dir))
@@ -119,7 +128,7 @@ class AppController(QObject):
         worker = PrefetchWorker(
             self.classifier,
             self.notes,
-            concurrency=self.config.prefetch_concurrency,
+            concurrency=total,
         )
         worker.progress.connect(self._on_prefetch_progress)
         worker.item_done.connect(self._on_prefetch_item_done)
@@ -169,6 +178,7 @@ class AppController(QObject):
                         f"成功移动：{self.stats.moved}",
                         f"自动重命名：{self.stats.renamed}",
                         f"跳过：{self.stats.skipped}",
+                        f"移到回收站：{self.stats.deleted}",
                         f"失败：{self.stats.failed}",
                         f"采纳建议：{self.stats.accepted}",
                     ]
@@ -322,6 +332,11 @@ class AppController(QObject):
         self.current_index += 1
         self.load_current_note()
 
+    def on_delete_requested(self) -> None:
+        if self.current_index >= len(self.notes):
+            return
+        self.delete_current_note()
+
     def on_exit_requested(self) -> None:
         if self.window.confirm_exit() and self.shutdown():
             self.window.request_close()
@@ -367,6 +382,21 @@ class AppController(QObject):
             return
 
         self._record_move_result(result, accepted)
+        self.current_index += 1
+        self.load_current_note()
+
+    def delete_current_note(self) -> None:
+        note = self.notes[self.current_index]
+        try:
+            delete_note_file(note.path)
+        except Exception as exc:
+            self.stats.failed += 1
+            message = str(exc).strip() or type(exc).__name__
+            self.window.set_status(f"移到回收站失败：{message}")
+            return
+
+        self.stats.deleted += 1
+        self.window.set_status(f"已移到回收站：{note.path.name}")
         self.current_index += 1
         self.load_current_note()
 

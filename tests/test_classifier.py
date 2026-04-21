@@ -9,6 +9,12 @@ class ClassifierTests(unittest.TestCase):
         for folder in CATEGORY_MAP.values():
             self.assertIn(folder, SYSTEM_PROMPT)
 
+    def test_system_prompt_expands_reference_category_for_lookup_material(self) -> None:
+        self.assertIn("科普", SYSTEM_PROMPT)
+        self.assertIn("百科", SYSTEM_PROMPT)
+        self.assertIn("知识点罗列", SYSTEM_PROMPT)
+        self.assertIn("查阅", SYSTEM_PROMPT)
+
     def test_build_user_prompt_truncates_content(self) -> None:
         prompt = build_user_prompt("标题", "abcdef", limit=4)
         self.assertIn("abcd", prompt)

@@ -1,14 +1,17 @@
 import os
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent, QKeyEvent
 
 from src.app import AppController
 from src.config import AppConfig
+from src.scanner import NoteFile
 from src.viewer import MainWindow, create_application
 
 
@@ -29,6 +32,7 @@ class _FakeWindow:
         self.accept_suggestion_requested = _FakeSignal()
         self.retry_suggestion_requested = _FakeSignal()
         self.skip_requested = _FakeSignal()
+        self.delete_requested = _FakeSignal()
         self.exit_requested = _FakeSignal()
         self.show_called = 0
         self.empty_state_source_dir: str | None = None
@@ -65,8 +69,8 @@ class _FakeWindow:
 
 
 class _FakeClassifier:
-    def __init__(self) -> None:
-        self.enabled = False
+    def __init__(self, *, enabled: bool = False) -> None:
+        self.enabled = enabled
 
 
 class _FakeDialog:
@@ -118,7 +122,14 @@ class AppControllerTests(unittest.TestCase):
             llm_max_retry=2,
             llm_content_limit=4000,
             prefetch_enabled=True,
-            prefetch_concurrency=4,
+        )
+
+    def _sample_note(self, name: str = "sample.md") -> NoteFile:
+        return NoteFile(
+            path=Path(f"D:/notes/{name}"),
+            title=name.removesuffix(".md"),
+            content="# title\nbody",
+            modified_at=datetime(2026, 4, 21, 12, 0, 0),
         )
 
     @patch("src.app.SiliconFlowClassifier", return_value=_FakeClassifier())
@@ -237,6 +248,73 @@ class AppControllerTests(unittest.TestCase):
 
         self.assertEqual(fake_window.request_close_called, 0)
 
+    @patch("src.app.PrefetchWorker")
+    @patch("src.app.QProgressDialog")
+    @patch("src.app.SiliconFlowClassifier", return_value=_FakeClassifier(enabled=True))
+    @patch("src.app.SuggestionCache")
+    @patch("src.app.scan_markdown_files")
+    @patch("src.app.ensure_category_dirs")
+    @patch("src.app.load_config")
+    @patch("src.app.MainWindow")
+    def test_start_prefetches_all_notes_in_one_batch(
+        self,
+        main_window_mock,
+        load_config_mock,
+        _ensure_dirs_mock,
+        scan_mock,
+        _cache_mock,
+        _classifier_mock,
+        _progress_dialog_mock,
+        prefetch_worker_mock,
+    ) -> None:
+        fake_window = _FakeWindow()
+        notes = [self._sample_note(f"note-{index}.md") for index in range(3)]
+        main_window_mock.return_value = fake_window
+        load_config_mock.return_value = self._build_config()
+        scan_mock.return_value = notes
+
+        controller = AppController()
+        controller.start()
+
+        prefetch_worker_mock.assert_called_once()
+        _, passed_notes = prefetch_worker_mock.call_args.args
+        self.assertEqual(passed_notes, notes)
+        self.assertEqual(
+            prefetch_worker_mock.call_args.kwargs["concurrency"],
+            len(notes),
+        )
+
+    @patch("src.app.delete_note_file")
+    @patch("src.app.SiliconFlowClassifier", return_value=_FakeClassifier())
+    @patch("src.app.SuggestionCache")
+    @patch("src.app.scan_markdown_files")
+    @patch("src.app.ensure_category_dirs")
+    @patch("src.app.load_config")
+    @patch("src.app.MainWindow")
+    def test_on_delete_requested_sends_current_note_to_recycle_bin(
+        self,
+        main_window_mock,
+        load_config_mock,
+        _ensure_dirs_mock,
+        scan_mock,
+        _cache_mock,
+        _classifier_mock,
+        delete_note_file_mock,
+    ) -> None:
+        fake_window = _FakeWindow()
+        notes = [self._sample_note("delete-me.md")]
+        main_window_mock.return_value = fake_window
+        load_config_mock.return_value = self._build_config()
+        scan_mock.return_value = notes
+
+        controller = AppController()
+        controller.on_delete_requested()
+
+        delete_note_file_mock.assert_called_once_with(notes[0].path)
+        self.assertEqual(controller.current_index, 1)
+        self.assertEqual(controller.stats.deleted, 1)
+        self.assertIn("已移到回收站：delete-me.md", fake_window.status_messages)
+
 
 class MainWindowTests(unittest.TestCase):
     @classmethod
@@ -259,6 +337,16 @@ class MainWindowTests(unittest.TestCase):
         window.closeEvent(allowed_event)
 
         self.assertTrue(allowed_event.isAccepted())
+
+    def test_key_press_d_emits_delete_requested(self) -> None:
+        window = MainWindow()
+        emitted: list[str] = []
+        window.delete_requested.connect(lambda: emitted.append("delete"))
+
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_D, Qt.NoModifier, "d")
+        window.keyPressEvent(event)
+
+        self.assertEqual(emitted, ["delete"])
 
 
 if __name__ == "__main__":

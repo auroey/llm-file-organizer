@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
     accept_suggestion_requested = Signal()
     retry_suggestion_requested = Signal()
     skip_requested = Signal()
+    delete_requested = Signal()
     exit_requested = Signal()
 
     def __init__(self) -> None:
@@ -176,7 +177,8 @@ QLabel#statusBar {
         return (
             "<b>快捷操作</b><br/>"
             "<code>[Enter]</code> 接受建议&nbsp;&nbsp;"
-            "<code>[S]</code> 跳过<br/>"
+            "<code>[S]</code> 跳过&nbsp;&nbsp;"
+            "<code>[D]</code> 移到回收站<br/>"
             "<code>[R]</code> 重试建议&nbsp;&nbsp;"
             "<code>[Esc]</code> 退出"
         )
@@ -364,6 +366,9 @@ QLabel#statusBar {
             return
         if event.key() == Qt.Key_S:
             self.skip_requested.emit()
+            return
+        if event.key() == Qt.Key_D:
+            self.delete_requested.emit()
             return
         if event.key() == Qt.Key_R:
             self.retry_suggestion_requested.emit()

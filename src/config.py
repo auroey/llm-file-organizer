@@ -56,7 +56,6 @@ class AppConfig:
     llm_max_retry: int
     llm_content_limit: int
     prefetch_enabled: bool
-    prefetch_concurrency: int
 
     @property
     def llm_enabled(self) -> bool:
@@ -84,5 +83,4 @@ def load_config() -> AppConfig:
         llm_max_retry=_get_int("LLM_MAX_RETRY", 1),
         llm_content_limit=_get_int("LLM_CONTENT_LIMIT", 4000),
         prefetch_enabled=_get_bool("PREFETCH_ENABLED", True),
-        prefetch_concurrency=max(1, _get_int("PREFETCH_CONCURRENCY", 4)),
     )

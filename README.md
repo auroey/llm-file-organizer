@@ -7,7 +7,7 @@
 
 A keyboard-first desktop app for sorting Markdown notes into categories with optional DeepSeek-powered suggestions.
 
-The app scans a notes folder, renders each Markdown file, lets you move it with `1-7`, and can prefetch LLM suggestions so triage stays fast even for large backlogs.
+The app scans a notes folder, renders each Markdown file, lets you move it with `1-7`, send it to the recycle bin with `D`, and prefetches LLM suggestions for the full current batch so triage stays fast even for large backlogs.
 
 中文说明见 [`README.zh-CN.md`](./README.zh-CN.md).
 
@@ -26,6 +26,7 @@ The app scans a notes folder, renders each Markdown file, lets you move it with 
 - Render Markdown in a PySide6 desktop UI
 - Accept suggestions with `Enter`
 - Skip current file with `S`
+- Send the current file to the system recycle bin with `D`
 - Retry the current suggestion with `R`
 - Persist suggestion cache to `<SOURCE_DIR>/.llm_cache.json`
 - Prevent dangerous `Pro/...` model usage
@@ -69,8 +70,7 @@ Copy `.env.example` to `.env` and update the values:
 | `LLM_TIMEOUT_SEC` | No | `10` | Request timeout per attempt |
 | `LLM_MAX_RETRY` | No | `1` | Automatic retry count |
 | `LLM_CONTENT_LIMIT` | No | `4000` | Characters sent to the model |
-| `PREFETCH_ENABLED` | No | `1` | Prefetch all suggestions on startup |
-| `PREFETCH_CONCURRENCY` | No | `4` | Parallel request count during prefetch |
+| `PREFETCH_ENABLED` | No | `1` | Prefetch all suggestions for the current batch on startup |
 
 ## Keyboard shortcuts
 
@@ -79,6 +79,7 @@ Copy `.env.example` to `.env` and update the values:
 | `1-7` | Move note into the matching category |
 | `Enter` | Accept the current LLM suggestion |
 | `S` | Skip current file |
+| `D` | Send current file to the system recycle bin |
 | `R` | Retry current suggestion |
 | `Esc` | Exit with confirmation |
 
@@ -92,7 +93,7 @@ Copy `.env.example` to `.env` and update the values:
 | `4` | `04_belonging` | Relationships and social life |
 | `5` | `05_esteem` | Projects, hobbies, and achievement |
 | `6` | `06_journal` | Diary and emotional notes |
-| `7` | `07_reference` | Reference material and lookup notes |
+| `7` | `07_reference` | Reference material, lookup notes, and encyclopedia-style summaries |
 
 ## How it works
 
